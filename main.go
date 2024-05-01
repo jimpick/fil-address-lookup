@@ -7,14 +7,21 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/filecoin-project/go-address"
 	jsonrpc "github.com/filecoin-project/go-jsonrpc"
 	lotusapi "github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 )
 
 const url = "https://api.node.glif.io/rpc/v1"
 
 func getAddress(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	fmt.Printf("Request: %+v\n", r)
+
+	addr := r.URL.Path[1:]
+	fmt.Printf("Address: %+v\n", addr)
 
 	var api lotusapi.FullNodeStruct
 	closer, err := jsonrpc.NewMergeClient(ctx, url, "Filecoin",
@@ -23,6 +30,25 @@ func getAddress(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("connecting with lotus failed: %s", err)
 	}
 	defer closer()
+
+	var queryAddr address.Address
+
+	ethAddr, err := ethtypes.ParseEthAddress(addr)
+	if err == nil {
+		// Eth address, Get Agent delegated address
+		queryAddr, err = ethAddr.ToFilecoinAddress()
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		// It might be a Fil address
+		queryAddr, err = address.NewFromString(addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Printf("Query addr: %v\n", queryAddr)
 
 	tipset, err := api.ChainHead(ctx)
 	if err != nil {
